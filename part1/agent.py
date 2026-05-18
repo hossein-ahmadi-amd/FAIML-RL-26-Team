@@ -18,7 +18,7 @@ class Policy(torch.nn.Module):
         super().__init__()
         self.state_space = state_space
         self.action_space = action_space
-        self.hidden = 64
+        self.hidden = 128
         self.tanh = torch.nn.Tanh()
 
         """
@@ -30,7 +30,7 @@ class Policy(torch.nn.Module):
         
         # Learned standard deviation for exploration at training time 
         self.sigma_activation = F.softplus
-        init_sigma = 0.5
+        init_sigma = 0.35
         self.sigma = torch.nn.Parameter(torch.zeros(self.action_space)+init_sigma)
 
 
@@ -38,6 +38,11 @@ class Policy(torch.nn.Module):
             Critic network
         """
         # TASK 3: critic network for actor-critic algorithm
+        self.fc1_critic = torch.nn.Linear(state_space, self.hidden)
+
+        self.fc2_critic = torch.nn.Linear(self.hidden, self.hidden)
+
+        self.fc3_critic = torch.nn.Linear(self.hidden, 1)
 
 
         self.init_weights()
@@ -66,9 +71,15 @@ class Policy(torch.nn.Module):
             Critic
         """
         # TASK 3: forward in the critic network
+        x_critic = self.tanh(self.fc1_critic(x))
+
+        x_critic = self.tanh(self.fc2_critic(x_critic))
+
+        state_value = self.fc3_critic(x_critic)
+
+        return normal_dist, state_value
 
         
-        return normal_dist
 
 
 class Agent(object):
@@ -76,6 +87,7 @@ class Agent(object):
         self.train_device = device
         self.policy = policy.to(self.train_device)
         self.optimizer = torch.optim.Adam(policy.parameters(), lr=1e-3)
+        self.state_values = []
 
         self.gamma = 0.99
         self.states = []
@@ -96,19 +108,62 @@ class Agent(object):
 
         #
         # TASK 2:
-        #   - compute discounted returns
-        #   - compute policy gradient loss function given actions and returns
-        #   - compute gradients and step the optimizer
-        #
+        # Compute discounted returns
+        #returns = discount_rewards(rewards, self.gamma)
+
+        # Normalize returns
+        #returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+
+        # Policy gradient loss
+        #baseline = returns.mean()
+
+        #advantages = returns - baseline
+
+        #policy_loss = -(action_log_probs * advantages).sum()
+
+        # Backpropagation
+        #self.optimizer.zero_grad()
+
+        #policy_loss.backward()
+
+        #self.optimizer.step()
 
 
         #
         # TASK 3:
-        #   - compute boostrapped discounted return estimates
-        #   - compute advantage terms
-        #   - compute actor loss and critic loss
-        #   - compute gradients and step the optimizer
-        #
+        state_values = torch.stack(self.state_values).squeeze()
+
+        returns = discount_rewards(rewards, self.gamma)
+
+        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+
+        advantages = returns - state_values.detach()
+
+        advantages = (
+            advantages - advantages.mean()
+        ) / (advantages.std() + 1e-8)
+
+        # Actor loss
+        actor_loss = -(action_log_probs * advantages).sum()
+
+        # Critic loss
+        critic_loss = F.mse_loss(state_values, returns)
+
+        # Total loss
+        loss = actor_loss + critic_loss
+
+        self.optimizer.zero_grad()
+
+        loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(
+           self.policy.parameters(),
+           max_norm=0.5
+        )
+
+        self.optimizer.step()
+
+        self.state_values = []
 
         return        
 
@@ -117,7 +172,7 @@ class Agent(object):
         """ state -> action (3-d), action_log_densities """
         x = torch.from_numpy(state).float().to(self.train_device)
 
-        normal_dist = self.policy(x)
+        normal_dist, state_value = self.policy(x)
 
         if evaluation:  # Return mean
             return normal_dist.mean, None
@@ -127,6 +182,8 @@ class Agent(object):
 
             # Compute Log probability of the action [ log(p(a[0] AND a[1] AND a[2])) = log(p(a[0])*p(a[1])*p(a[2])) = log(p(a[0])) + log(p(a[1])) + log(p(a[2])) ]
             action_log_prob = normal_dist.log_prob(action).sum()
+
+            self.state_values.append(state_value)
 
             return action, action_log_prob
 
