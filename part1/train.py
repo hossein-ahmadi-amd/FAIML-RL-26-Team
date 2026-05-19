@@ -3,10 +3,22 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import argparse
 
 from agent import Policy, Agent
 
 def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--algo",
+        type=str,
+        choices=["reinforce", "ac"],
+        default="reinforce"
+    )
+
+    args = parser.parse_args()
+
     env = gym.make('Hopper-v4')
 
     print('State space:', env.observation_space)  # state-space
@@ -20,16 +32,20 @@ def main():
     policy = Policy(state_space, action_space)
 
     # Create RL agent
-    agent = Agent(policy)
+    agent = Agent(policy, algo=args.algo)
 
     # Number of training episodes
-    num_episodes = 1000
+    num_episodes = 100
 
     # Store rewards for plotting
     reward_history = []
 
+    print("Starting training...")
+
     # Training loop
     for episode in range(num_episodes):
+
+        print(f"Episode {episode+1} started")
 
         # Reset environment
         state, _ = env.reset()
@@ -75,6 +91,8 @@ def main():
 
         # Print progress
         print(f"Episode {episode+1}, Reward: {episode_reward}")
+
+        print("Running algorithm:", args.algo)
 
     # Plot rewards
     plt.plot(reward_history)

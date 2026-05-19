@@ -83,11 +83,12 @@ class Policy(torch.nn.Module):
 
 
 class Agent(object):
-    def __init__(self, policy, device='cpu'):
+    def __init__(self, policy, device='cpu', algo='reinforce'):
         self.train_device = device
         self.policy = policy.to(self.train_device)
         self.optimizer = torch.optim.Adam(policy.parameters(), lr=1e-3)
         self.state_values = []
+        self.algo = algo
 
         self.gamma = 0.99
         self.states = []
@@ -108,62 +109,65 @@ class Agent(object):
 
         #
         # TASK 2:
-        # Compute discounted returns
-        #returns = discount_rewards(rewards, self.gamma)
+        if self.algo == "reinforce":
+        
+            returns = discount_rewards(rewards, self.gamma)
 
-        # Normalize returns
-        #returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+            # Normalize returns
+            returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
-        # Policy gradient loss
-        #baseline = returns.mean()
+            # Policy gradient loss
+            baseline = returns.mean()
 
-        #advantages = returns - baseline
+            advantages = returns - baseline
 
-        #policy_loss = -(action_log_probs * advantages).sum()
+            policy_loss = -(action_log_probs * advantages).sum()
 
-        # Backpropagation
-        #self.optimizer.zero_grad()
+            # Backpropagation
+            self.optimizer.zero_grad()
 
-        #policy_loss.backward()
+            policy_loss.backward()
 
-        #self.optimizer.step()
+            self.optimizer.step()
 
 
         #
         # TASK 3:
-        state_values = torch.stack(self.state_values).squeeze()
+        elif self.algo == "ac":
 
-        returns = discount_rewards(rewards, self.gamma)
+            state_values = torch.stack(self.state_values).squeeze()
 
-        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+            returns = discount_rewards(rewards, self.gamma)
 
-        advantages = returns - state_values.detach()
+            returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
-        advantages = (
-            advantages - advantages.mean()
-        ) / (advantages.std() + 1e-8)
+            advantages = returns - state_values.detach()
 
-        # Actor loss
-        actor_loss = -(action_log_probs * advantages).sum()
+            advantages = (
+                advantages - advantages.mean()
+            ) / (advantages.std() + 1e-8)
 
-        # Critic loss
-        critic_loss = F.mse_loss(state_values, returns)
+            # Actor loss
+            actor_loss = -(action_log_probs * advantages).sum()
 
-        # Total loss
-        loss = actor_loss + critic_loss
+            # Critic loss
+            critic_loss = F.mse_loss(state_values, returns)
 
-        self.optimizer.zero_grad()
+            # Total loss
+            loss = actor_loss + critic_loss
 
-        loss.backward()
+            self.optimizer.zero_grad()
 
-        torch.nn.utils.clip_grad_norm_(
-           self.policy.parameters(),
-           max_norm=0.5
-        )
+            loss.backward()
 
-        self.optimizer.step()
+            torch.nn.utils.clip_grad_norm_(
+               self.policy.parameters(),
+               max_norm=0.5
+            )
 
-        self.state_values = []
+            self.optimizer.step()
+
+            self.state_values = []
 
         return        
 
