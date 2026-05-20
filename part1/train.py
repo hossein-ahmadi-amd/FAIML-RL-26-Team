@@ -1,147 +1,126 @@
+import argparse
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import argparse
 
 from agent import Policy, Agent
 
+
+def moving_average(data, window_size=50):
+    if len(data) < window_size:
+        return np.array(data)
+    return np.convolve(data, np.ones(window_size) / window_size, mode='valid')
+
+
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Train REINFORCE / Actor-Critic on Hopper-v4")
 
     parser.add_argument(
         "--algo",
         type=str,
         choices=["reinforce", "ac"],
-        default="reinforce"
+        default="reinforce",
+        help="Algorithm to use: reinforce or ac (Actor-Critic)"
+    )
+    parser.add_argument(
+        "--baseline",
+        type=float,
+        default=None,
+        help="Constant baseline for REINFORCE (e.g. 20.0). Omit for no baseline. Ignored for ac."
+    )
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=1000,
+        help="Number of training episodes (default: 1000)"
     )
 
     args = parser.parse_args()
 
+    # Build a descriptive run name for saving files
+    if args.algo == "reinforce":
+        if args.baseline is None:
+            run_name = "reinforce_no_baseline"
+        else:
+            run_name = f"reinforce_baseline_{int(args.baseline)}"
+    else:
+        run_name = "actor_critic"
+
+    print(f"Algorithm : {args.algo}")
+    print(f"Baseline  : {args.baseline}")
+    print(f"Episodes  : {args.episodes}")
+    print(f"Run name  : {run_name}")
+
     env = gym.make('Hopper-v4')
 
-    print('State space:', env.observation_space)  # state-space
-    print('Action space:', env.action_space)  # action-space
+    print('State space :', env.observation_space)
+    print('Action space:', env.action_space)
 
-    # Get dimensions
     state_space = env.observation_space.shape[0]
     action_space = env.action_space.shape[0]
 
-    # Create policy network
     policy = Policy(state_space, action_space)
+    agent = Agent(policy, algo=args.algo, baseline=args.baseline)
 
-    # Create RL agent
-    agent = Agent(policy, algo=args.algo)
-
-    # Number of training episodes
-    num_episodes = 100
-
-    # Store rewards for plotting
     reward_history = []
 
     print("Starting training...")
 
-    # Training loop
-    for episode in range(num_episodes):
-
-        print(f"Episode {episode+1} started")
-
-        # Reset environment
+    for episode in range(args.episodes):
         state, _ = env.reset()
-
         done = False
-
         episode_reward = 0
 
-        # Run one episode
         while not done:
-
-            # Get action from policy
             action, action_log_prob = agent.get_action(state)
-
-            # Step environment
             next_state, reward, terminated, truncated, _ = env.step(
                 action.detach().numpy()
             )
-
-            # Check episode termination
             done = terminated or truncated
-
-            # Store trajectory information
-            agent.store_outcome(
-                state,
-                next_state,
-                action_log_prob,
-                reward,
-                done
-            )
-
-            # Move to next state
+            agent.store_outcome(state, next_state, action_log_prob, reward, done)
             state = next_state
-
-            # Accumulate reward
             episode_reward += reward
 
-        # Update policy after episode ends
         agent.update_policy()
-
-        # Store reward history
         reward_history.append(episode_reward)
 
-        # Print progress
-        print(f"Episode {episode+1}, Reward: {episode_reward}")
+        if (episode + 1) % 50 == 0:
+            avg = np.mean(reward_history[-50:])
+            print(f"Episode {episode + 1:4d}/{args.episodes} | "
+                  f"Last-50 avg reward: {avg:.1f}")
 
-        print("Running algorithm:", args.algo)
+    env.close()
 
-    # Plot rewards
-    plt.plot(reward_history)
+    # ------------------------------------------------------------------
+    # Save model and rewards
+    # ------------------------------------------------------------------
+    torch.save(policy.state_dict(), f"{run_name}.pth")
+    np.save(f"{run_name}_rewards.npy", np.array(reward_history))
+    print(f"Model saved  : {run_name}.pth")
+    print(f"Rewards saved: {run_name}_rewards.npy")
 
+    # ------------------------------------------------------------------
+    # Raw reward plot
+    # ------------------------------------------------------------------
+    plt.figure(figsize=(10, 4))
+    plt.plot(reward_history, alpha=0.4, label="Raw reward")
+    smoothed = moving_average(reward_history, window_size=50)
+    offset = len(reward_history) - len(smoothed)
+    plt.plot(range(offset, offset + len(smoothed)), smoothed,
+             label="Smoothed (50-ep)", linewidth=2)
     plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.title("REINFORCE Training on Hopper")
-
-    plt.savefig("final_raw_rewards.png")
-
+    plt.ylabel("Total reward")
+    plt.title(f"Training curve — {run_name}")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"{run_name}_curve.png", dpi=150)
     plt.show()
+    print(f"Plot saved   : {run_name}_curve.png")
 
-    # ----------------------------
-    # Smoothed Reward Plot
-    # ----------------------------
-
-    def moving_average(data, window_size=50):
-
-       return np.convolve(
-           data,
-           np.ones(window_size)/window_size,
-           mode='valid'
-       )
-
-    smoothed_rewards = moving_average(reward_history)
-
-    plt.plot(smoothed_rewards)
-
-    plt.xlabel("Episode")
-    plt.ylabel("Smoothed Reward")
-    plt.title("Smoothed Actor-Critic Training")
-
-    plt.savefig("final_smoothed_rewards.png")
-
-    plt.show()
-
-    torch.save(
-    policy.state_dict(),
-       "final_actor_critic.pth"
-    )
-
-    np.save(
-       "final_rewards.npy",
-        reward_history
-    )
-
-    print("Average Reward:", np.mean(reward_history))
-
-    print("Max Reward:", np.max(reward_history))
+    print(f"\nFinal 100-episode average : {np.mean(reward_history[-100:]):.1f}")
+    print(f"Max episode reward        : {np.max(reward_history):.1f}")
 
 
 if __name__ == '__main__':
