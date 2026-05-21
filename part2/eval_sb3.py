@@ -3,20 +3,44 @@ import os
 
 import gymnasium as gym
 import numpy as np
-#from stable_baselines3 import 
 import panda_gym  # noqa: F401 - required so Panda envs are registered
+from stable_baselines3 import PPO, SAC
 
 
-def evaluate(model_path: str, n_episodes: int, deterministic: bool, render: bool, env_type: str) -> None:
-    if not os.path.exists(model_path):
+def evaluate(
+    algo: str,
+    model_path: str,
+    n_episodes: int,
+    deterministic: bool,
+    render: bool,
+    env_type: str,
+) -> None:
+    if not os.path.exists(model_path) and not os.path.exists(model_path + ".zip"):
         raise FileNotFoundError(
             f"Model file not found: {model_path}. "
             "Make sure you saved your trained model with model.save(...)."
         )
 
     render_mode = "human" if render else "rgb_array"
-    env = gym.make("PandaPush-v3", render_mode=render_mode, type=env_type, reward_type="dense")
-    #TODO: load model here
+    env = gym.make(
+        "PandaPush-v3",
+        render_mode=render_mode,
+        type=env_type,
+        reward_type="dense",
+    )
+
+    # Load model
+    if algo == "ppo":
+        model = PPO.load(model_path, env=env)
+    else:  # sac
+        model = SAC.load(model_path, env=env)
+
+    print(f"Model loaded : {model_path}")
+    print(f"Algorithm    : {algo.upper()}")
+    print(f"Env type     : {env_type}")
+    print(f"Episodes     : {n_episodes}")
+    print(f"Deterministic: {deterministic}")
+    print()
 
     episode_returns = []
     successes = []
@@ -28,7 +52,7 @@ def evaluate(model_path: str, n_episodes: int, deterministic: bool, render: bool
         episode_return = 0.0
 
         while not (terminated or truncated):
-            action,_ = ... #TODO: get action from the model
+            action, _ = model.predict(obs, deterministic=deterministic)
             obs, reward, terminated, truncated, info = env.step(action)
             episode_return += float(reward)
 
@@ -43,35 +67,41 @@ def evaluate(model_path: str, n_episodes: int, deterministic: bool, render: bool
 
     returns = np.array(episode_returns, dtype=np.float32)
     print("\n=== Evaluation summary ===")
-    print(f"Episodes: {n_episodes}")
-    print(f"Mean return: {returns.mean():.3f}")
-    print(f"Std return:  {returns.std():.3f}")
-    print(f"Min return:  {returns.min():.3f}")
-    print(f"Max return:  {returns.max():.3f}")
+    print(f"Episodes     : {n_episodes}")
+    print(f"Mean return  : {returns.mean():.3f}")
+    print(f"Std return   : {returns.std():.3f}")
+    print(f"Min return   : {returns.min():.3f}")
+    print(f"Max return   : {returns.max():.3f}")
 
     if successes:
-        success_rate = float(np.mean(successes))
-        print(f"Success rate: {success_rate:.2%}")
+        print(f"Success rate : {float(np.mean(successes)):.2%}")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate SAC on PandaPush-v3")
+    parser = argparse.ArgumentParser(description="Evaluate PPO/SAC on PandaPush-v3")
+    parser.add_argument(
+        "--algo",
+        type=str,
+        choices=["ppo", "sac"],
+        required=True,
+        help="Algorithm used to train the model: ppo or sac",
+    )
     parser.add_argument(
         "--model-path",
         type=str,
         required=True,
-        help="Path to a PPO model zip file (e.g., ppo_panda_push.zip)",
+        help="Path to model zip file (e.g. sac_push_none_source_500k)",
     )
     parser.add_argument(
-        "--episodes", 
-        type=int, 
-        default=500, 
-        help="Number of eval episodes"
+        "--episodes",
+        type=int,
+        default=50,
+        help="Number of eval episodes (default: 50)",
     )
     parser.add_argument(
         "--stochastic",
         action="store_true",
-        help="Use stochastic policy sampling instead of deterministic actions",
+        help="Use stochastic policy instead of deterministic",
     )
     parser.add_argument(
         "--render",
@@ -80,9 +110,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--env-type",
-        type=str, default="target",
+        type=str,
+        default="target",
         choices=["source", "target"],
-        help="Type of environment to evaluate on (default: target)",
+        help="Environment to evaluate on (default: target)",
     )
     return parser.parse_args()
 
@@ -90,6 +121,7 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = parse_args()
     evaluate(
+        algo=args.algo,
         model_path=args.model_path,
         n_episodes=args.episodes,
         deterministic=not args.stochastic,
