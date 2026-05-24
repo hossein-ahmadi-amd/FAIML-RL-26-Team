@@ -4,7 +4,6 @@ import os
 import gymnasium as gym
 import panda_gym  # type: ignore[import-not-found]
 from stable_baselines3 import PPO, SAC
-from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback
 from rand_wrapper import RandomizationWrapper
 
 
@@ -38,6 +37,14 @@ def parse_args() -> argparse.Namespace:
         help="Number of training timesteps",
     )
     parser.add_argument(
+        "--mass-range",
+        type=float,
+        nargs=2,
+        default=[0.5, 6.0],
+        metavar=("MIN", "MAX"),
+        help="Mass range for UDR/ADR (default: 0.5 6.0)",
+    )
+    parser.add_argument(
         "--save-dir",
         type=str,
         default=".",
@@ -66,39 +73,31 @@ def main() -> None:
     )
 
     if args.sampling_strategy != "none":
-        env = RandomizationWrapper(env, strategy=args.sampling_strategy)
+        env = RandomizationWrapper(
+            env,
+            mass_range=tuple(args.mass_range),
+            mode=args.sampling_strategy,
+        )
 
-    # Build save name: algo_push_strategy_envtype_timestepsk
-    save_name = f"{args.algo}_push_{args.sampling_strategy}_{args.env_type}_{args.timesteps // 1000}k"
+    # Save name encodes all relevant hyperparameters
+    mass_tag = f"{args.mass_range[0]}_{args.mass_range[1]}" if args.sampling_strategy != "none" else "none"
+    save_name = f"{args.algo}_push_{args.sampling_strategy}_{mass_tag}_{args.env_type}_{args.timesteps // 1000}k"
     save_path = os.path.join(args.save_dir, save_name)
     log_path = os.path.join(args.log_dir, save_name)
 
     print(f"Algorithm  : {args.algo.upper()}")
     print(f"Strategy   : {args.sampling_strategy}")
+    print(f"Mass range : {args.mass_range}")
     print(f"Env type   : {args.env_type}")
     print(f"Timesteps  : {args.timesteps}")
     print(f"Save path  : {save_path}")
 
-    # Create model
     if args.algo == "ppo":
-        model = PPO(
-            "MultiInputPolicy",
-            env,
-            verbose=1,
-            tensorboard_log=log_path,
-        )
-    else:  # sac
-        model = SAC(
-            "MultiInputPolicy",
-            env,
-            verbose=1,
-            tensorboard_log=log_path,
-        )
+        model = PPO("MultiInputPolicy", env, verbose=1, tensorboard_log=log_path)
+    else:
+        model = SAC("MultiInputPolicy", env, verbose=1, tensorboard_log=log_path)
 
-    # Train
     model.learn(total_timesteps=args.timesteps)
-
-    # Save
     model.save(save_path)
     print(f"Model saved: {save_path}.zip")
 
