@@ -55,6 +55,8 @@ class RandomizationWrapper(gym.Wrapper):
 
         # Tracks cumulative reward for the current episode (used by ADR)
         self._episode_return = 0.0
+        # Tracks episode success for ADR boundary updates (0 or 1)
+        self._episode_success = 0.0
 
     # -----------------------------------------------------------------
     # Mass Sampling
@@ -134,18 +136,22 @@ class RandomizationWrapper(gym.Wrapper):
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
 
-        # Accumulate episode return for ADR boundary updates
+        # Accumulate episode return for reference
         self._episode_return += float(reward)
 
         done = terminated or truncated
+
+        # Track success signal for ADR (is_success is 0 or 1, reliable metric)
         if done and self.mode == "adr":
-            self._update_adr_boundaries(self._episode_return)
+            success = float(info.get("is_success", 0.0))
+            self._update_adr_boundaries(success)
 
         return obs, reward, terminated, truncated, info
 
     def reset(self, **kwargs):
-        # Reset episode return tracker
+        # Reset episode trackers
         self._episode_return = 0.0
+        self._episode_success = 0.0
 
         # Sample new mass
         new_mass = self._sample_mass()

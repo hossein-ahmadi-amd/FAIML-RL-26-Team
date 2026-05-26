@@ -112,21 +112,23 @@ class Agent(object):
             # Compute discounted returns G_t
             returns = discount_rewards(rewards, self.gamma)
 
-            # Normalize returns to reduce variance
-            returns = (returns - returns.mean()) / (returns.std() + 1e-8)
-
             if self.baseline is None:
-                # REINFORCE without baseline
-                # loss = -sum( log_prob(a_t) * G_t )
+                # REINFORCE without baseline: normalize G_t directly
+                returns = (returns - returns.mean()) / (returns.std() + 1e-8)
                 policy_loss = -(action_log_probs * returns).sum()
             else:
-                # REINFORCE with constant baseline b
-                # loss = -sum( log_prob(a_t) * (G_t - b) )
-                policy_loss = -(action_log_probs * (returns - self.baseline)).sum()
+                # REINFORCE with constant baseline b:
+                # subtract baseline FIRST, then normalize the adjusted returns
+                adjusted = returns - self.baseline
+                adjusted = (adjusted - adjusted.mean()) / (adjusted.std() + 1e-8)
+                policy_loss = -(action_log_probs * adjusted).sum()
 
             self.optimizer.zero_grad()
             policy_loss.backward()
             self.optimizer.step()
+
+            # Bug fix: clear state_values to prevent memory leak across episodes
+            self.state_values = []
 
         # ------------------------------------------------------------------
         # TASK 3: Actor-Critic (TD targets, not Monte Carlo)
