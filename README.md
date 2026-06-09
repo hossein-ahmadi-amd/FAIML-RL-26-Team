@@ -1,75 +1,101 @@
-# Starting code for course project of FAIML - 01VSDWS
+# FAIML RL Project — Group 12
+**Course:** Fundamentals of Artificial Intelligence, Machine and Deep Learning (01VSDWS)  
+**A.Y.:** 2025/2026 — Politecnico di Torino
 
-Official assignment at [Google Doc](https://docs.google.com/document/d/1AXgLXux3l69vDAPLL-UYD3luFOw3JbyR-pLCS2yuNZk/edit?usp=sharing)
+## Team
+| Name | Student ID |
+|---|---|
+| Sreelekshmi Manju | s358798 |
+| Merry Bonifaise | s359201 |
+| Hossein Ahmadi | s351951 |
+| Prince Thekkedath | s358334 |
 
-## Getting started
+---
 
-Before starting to implement your own code, make sure to:
-1. read and study the material provided (see Section 1 of the assignment)
-2. read the documentation of the main packages you will be using ([Gymnasium](https://gymnasium.farama.org), [stable-baselines3](https://stable-baselines3.readthedocs.io/en/master/index.html))
-3. play around with the code in the template to familiarize with all the tools. Especially with the `test_random_policy.py` script.
+## Project Overview
+This project implements and evaluates reinforcement learning algorithms for continuous robotic control, focusing on the sim-to-real transfer problem. It covers:
 
+- **Part 1 (Hopper-v4):** REINFORCE (with and without baseline) and Actor-Critic from scratch in PyTorch
+- **Part 2 (PandaPush-v3):** PPO and SAC via Stable-Baselines3, with Uniform Domain Randomization (UDR) and Automatic Domain Randomization (ADR)
 
-### 1. Local
+---
 
-if you have a Linux system, you can work on the course project directly on your local machine. By doing so, you will also be able to render the Mujoco Hopper environment and visualize what is happening.
-We highly suggest using Conda to manage the environment.
-
-**Dependencies**
-- Run `pip install -r requirements.txt`
-
-Check your installation by launching `python test_random_policy.py`.
-
-
-### 2. Google Colab
-
-You can also run the code on [Google Colab](https://colab.research.google.com/)
-
-- Download all files contained in the `colab_template` folder in this repo (inside phase_1 folder).
-- Load the `test_random_policy.ipynb` file on [https://colab.research.google.com/](colab) and follow the instructions on it.
-
-NOTE 1: rendering is currently **not** officially supported on Colab, making it hard to see the simulator in action. We recommend that each group manages to play around with the visual interface of the simulator at least once, to best understand what is going on with the underlying Hopper environment.
-
-NOTE 2: you need to stay connected to the Google Colab interface at all times for your python scripts to keep training.
-
-## 3. Extra step for Push task
-To train on the panda-gym task you have to follow these steps first:
-
-```bash
-cd part2/panda-gym
-pip install -e .
-```
-
-## Project structure
+## Repository Structure
 
 ```
-FAIML-RL-26/
-├── README.md
+FAIML-RL-26-Team/
 ├── requirements.txt
-├── part1/ <-- about Hopper
-│   ├── agent.py
-│   ├── test_random_policy.py
-│   ├── train.py
+├── part1/                        # Hopper-v4 — Tasks 1–3
+│   ├── agent.py                  # Policy, Agent, REINFORCE, Actor-Critic
+│   ├── train.py                  # Training loop
+│   ├── test_random_policy.py     # Random policy baseline
 │   └── colab_template/
 │       └── test_random_policy.ipynb
-└── part2/ <-- about PushTask
-    ├── eval_sb3.py
-    ├── rand_wrapper.py <-- randomization wrapper for UDR/ADR
-    ├── test_random_policy.py
-    ├── train_sb3.py
-    └── panda-gym/
-        └── panda_gym/ (main package)
-            └── envs/
-                ├── core.py
-                ├── panda_tasks.py
-                ├── robots/
-                │   └── panda.py
-                └── tasks/
-                    ├── flip.py
-                    ├── pick_and_place.py
-                    ├── push.py <-- you will use this environment
-                    ├── reach.py
-                    ├── slide.py
-                    └── stack.py
-        
+└── part2/                        # PandaPush-v3 — Tasks 4–6
+    ├── train_sb3.py              # PPO/SAC training with UDR/ADR
+    ├── eval_sb3.py               # Evaluation script
+    ├── rand_wrapper.py           # UDR and ADR wrapper
+    ├── test_random_policy.py     # Random policy baseline
+    └── panda-gym/                # Custom PandaGym environments
+```
+
+---
+
+## Installation
+
+```bash
+pip install -r requirements.txt
+cd part2/panda-gym && pip install -e .
+```
+
+---
+
+## Usage
+
+### Part 1 — Hopper-v4
+
+REINFORCE without baseline:
+```bash
+cd part1
+python train.py --algo reinforce
+```
+
+REINFORCE with baseline b=20:
+```bash
+cd part1
+python train.py --algo reinforce --baseline 20
+```
+
+Actor-Critic:
+```bash
+cd part1
+python train.py --algo ac
+```
+
+---
+
+### Part 2 — PandaPush-v3
+
+Train SAC on source (no DR):
+```bash
+cd part2
+python train_sb3.py --algo sac --env-type source
+```
+
+Train SAC with UDR covering range:
+```bash
+cd part2
+python train_sb3.py --algo sac --sampling-strategy udr --mass-range 0.5 6.0 --env-type source
+```
+
+Train SAC with ADR:
+```bash
+cd part2
+python train_sb3.py --algo sac --sampling-strategy adr --mass-range 1.0 1.0 --env-type source
+```
+
+Evaluate a saved model on the target domain (50 episodes):
+```bash
+cd part2
+python eval_sb3.py --algo sac --model-path sac_push_none_source_500k --env-type target
 ```
