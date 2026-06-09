@@ -29,6 +29,9 @@ FAIML-RL-26-Team/
 │   ├── agent.py                  # Policy, Agent, REINFORCE, Actor-Critic
 │   ├── train.py                  # Training loop
 │   ├── test_random_policy.py     # Random policy baseline
+│   ├── actor_critic.pth          # Trained Actor-Critic model
+│   ├── reinforce_baseline_20.pth # Trained REINFORCE (b=20) model
+│   ├── reinforce_no_baseline.pth # Trained REINFORCE (no baseline) model
 │   └── colab_template/
 │       └── test_random_policy.ipynb
 └── part2/                        # PandaPush-v3 — Tasks 4–6
@@ -36,6 +39,13 @@ FAIML-RL-26-Team/
     ├── eval_sb3.py               # Evaluation script
     ├── rand_wrapper.py           # UDR and ADR wrapper
     ├── test_random_policy.py     # Random policy baseline
+    ├── ppo_push_none_source_500k.zip
+    ├── sac_push_none_source_500k.zip
+    ├── sac_push_none_target_500k.zip
+    ├── sac_push_udr_0.5_3.0_source_500k.zip
+    ├── sac_push_udr_0.5_6.0_source_500k.zip
+    ├── sac_push_udr_0.5_10.0_source_500k.zip
+    ├── sac_push_adr_1.0_1.0_source_500k.zip
     └── panda-gym/                # Custom PandaGym environments
 ```
 
@@ -49,7 +59,22 @@ cd part2/panda-gym && pip install -e .
 ```
 
 ---
+## Pre-trained Models
 
+Trained model weights are included in the repository:
+
+| File | Location | Description |
+|---|---|---|
+| `reinforce_no_baseline.pth` | `part1/` | REINFORCE without baseline |
+| `reinforce_baseline_20.pth` | `part1/` | REINFORCE with baseline b=20 |
+| `actor_critic.pth` | `part1/` | Actor-Critic |
+| `ppo_push_none_source_500k.zip` | `part2/` | PPO on source domain |
+| `sac_push_none_source_500k.zip` | `part2/` | SAC on source domain |
+| `sac_push_none_target_500k.zip` | `part2/` | SAC on target domain |
+| `sac_push_udr_0.5_3.0_source_500k.zip` | `part2/` | SAC + UDR narrow |
+| `sac_push_udr_0.5_6.0_source_500k.zip` | `part2/` | SAC + UDR covering |
+| `sac_push_udr_0.5_10.0_source_500k.zip` | `part2/` | SAC + UDR wide |
+| `sac_push_adr_1.0_1.0_source_500k.zip` | `part2/` | SAC + ADR |
 ## Usage
 
 ### Part 1 — Hopper-v4
